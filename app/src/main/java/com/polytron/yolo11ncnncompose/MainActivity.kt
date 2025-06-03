@@ -35,7 +35,7 @@ import com.polytron.yolo11ncnncompose.ui.theme.Yolo11NCNNComposeTheme
 class MainActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private val REQUEST_CAMERA = 100
-    private val yolo11ncnn = YOLO11Ncnn()
+    private val ncnn = Ncnn()
     private var facing = 0
     lateinit var surfaceView: SurfaceView
 
@@ -54,10 +54,22 @@ class MainActivity : ComponentActivity(), SurfaceHolder.Callback {
                                 IconButton(
                                     onClick = {
                                     val newFacing = 1 - facing
-                                    yolo11ncnn.closeCamera()
-                                    yolo11ncnn.openCamera(newFacing)
+                                    ncnn.closeCamera()
+                                    ncnn.openCamera(newFacing)
                                     facing = newFacing
                                 }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Refresh,
+                                        contentDescription = "Info"
+                                    )
+                                }
+                                IconButton(
+                                    onClick = {
+                                        val newFacing = 1 - facing
+                                        ncnn.closeCamera()
+                                        ncnn.openCamera(newFacing)
+                                        facing = newFacing
+                                    }) {
                                     Icon(
                                         imageVector = Icons.Default.Refresh,
                                         contentDescription = "Info"
@@ -91,29 +103,29 @@ class MainActivity : ComponentActivity(), SurfaceHolder.Callback {
                 REQUEST_CAMERA
             )
         } else {
-            yolo11ncnn.openCamera(facing)
+            ncnn.openCamera(facing)
         }
 
-        val retInit = yolo11ncnn.loadModel(assets)
+        val retInit = ncnn.loadModelHand(assets)
         if (!retInit) {
-            Log.e("MainActivity", "yolo11ncnn loadModel failed")
+            Log.e("MainActivity", "ncnn loadModel failed")
         }
     }
 
     override fun onResume() {
         super.onResume()
-        yolo11ncnn.openCamera(facing)
+        ncnn.openCamera(facing)
     }
 
     override fun onPause() {
         super.onPause()
-        yolo11ncnn.closeCamera()
+        ncnn.closeCamera()
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {}
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
-        yolo11ncnn.setOutputWindow(holder.surface)
+        ncnn.setOutputWindow(holder.surface)
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {}
