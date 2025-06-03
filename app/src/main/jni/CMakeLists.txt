@@ -8,6 +8,11 @@ find_package(OpenCV REQUIRED core imgproc)
 set(ncnn_DIR ${CMAKE_SOURCE_DIR}/ncnn-20250428-android-vulkan/${ANDROID_ABI}/lib/cmake/ncnn)
 find_package(ncnn REQUIRED)
 
-add_library(yolo11ncnn SHARED yolo11ncnn.cpp yolo11.cpp yolo11_det.cpp yolo11_pose.cpp camera/ndkcamera.cpp)
+add_library(myncnn SHARED
+        main_ncnn.cpp
+        myncnn/myncnn.cpp
+        myncnn/type/detection.cpp
+        myncnn/type/Pose.cpp
+        camera/ndkcamera.cpp)
 
-target_link_libraries(yolo11ncnn ncnn ${OpenCV_LIBS} camera2ndk mediandk)
+target_link_libraries(myncnn ncnn ${OpenCV_LIBS} camera2ndk mediandk)

@@ -1,17 +1,3 @@
-// Tencent is pleased to support the open source community by making ncnn available.
-//
-// Copyright (C) 2025 THL A29 Limited, a Tencent company. All rights reserved.
-//
-// Licensed under the BSD 3-Clause License (the "License"); you may not use this file except
-// in compliance with the License. You may obtain a copy of the License at
-//
-// https://opensource.org/licenses/BSD-3-Clause
-//
-// Unless required by applicable law or agreed to in writing, software distributed
-// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-// CONDITIONS OF ANY KIND, either express or implied. See the License for the
-// specific language governing permissions and limitations under the License.
-
 #include <android/asset_manager_jni.h>
 #include <android/native_window_jni.h>
 #include <android/native_window.h>
@@ -26,7 +12,7 @@
 #include <platform.h>
 #include <benchmark.h>
 
-#include "yolo11.h"
+#include "myncnn/myncnn.h"
 
 #include "camera/ndkcamera.h"
 
@@ -48,7 +34,7 @@ static int draw_unsupported(cv::Mat& rgb)
     int x = (rgb.cols - label_size.width) / 2;
 
     cv::rectangle(rgb, cv::Rect(cv::Point(x, y), cv::Size(label_size.width, label_size.height + baseLine)),
-                    cv::Scalar(255, 255, 255), -1);
+                  cv::Scalar(255, 255, 255), -1);
 
     cv::putText(rgb, text, cv::Point(x, y + label_size.height),
                 cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(0, 0, 0));
@@ -102,7 +88,7 @@ static int draw_fps(cv::Mat& rgb)
     int x = rgb.cols - label_size.width;
 
     cv::rectangle(rgb, cv::Rect(cv::Point(x, y), cv::Size(label_size.width, label_size.height + baseLine)),
-                    cv::Scalar(255, 255, 255), -1);
+                  cv::Scalar(255, 255, 255), -1);
 
     cv::putText(rgb, text, cv::Point(x, y + label_size.height),
                 cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0));
@@ -110,7 +96,7 @@ static int draw_fps(cv::Mat& rgb)
     return 0;
 }
 
-static YOLO11* g_yolo11 = 0;
+static MYNCNN* g_ncnn = 0;
 static ncnn::Mutex lock;
 
 class MyNdkCamera : public NdkCameraWindow
@@ -125,12 +111,12 @@ void MyNdkCamera::on_image_render(cv::Mat& rgb) const
     {
         ncnn::MutexLockGuard g(lock);
 
-        if (g_yolo11)
+        if (g_ncnn)
         {
             std::vector<Object> objects;
-            g_yolo11->detect(rgb, objects);
+            g_ncnn->detect(rgb, objects);
 
-            g_yolo11->draw(rgb, objects);
+            g_ncnn->draw(rgb, objects);
         }
         else
         {
@@ -163,8 +149,8 @@ JNIEXPORT void JNI_OnUnload(JavaVM* vm, void* reserved)
     {
         ncnn::MutexLockGuard g(lock);
 
-        delete g_yolo11;
-        g_yolo11 = 0;
+        delete g_ncnn;
+        g_ncnn = 0;
     }
 
     ncnn::destroy_gpu_instance();
@@ -174,7 +160,7 @@ JNIEXPORT void JNI_OnUnload(JavaVM* vm, void* reserved)
 }
 
 // public native boolean loadModel(AssetManager mgr, int taskid, int modelid, int cpugpu);
-JNIEXPORT jboolean JNICALL Java_com_polytron_yolo11ncnncompose_YOLO11Ncnn_loadModel(JNIEnv* env, jobject thiz, jobject assetManager)
+JNIEXPORT jboolean JNICALL Java_com_polytron_yolo11ncnncompose_MyNcnn_loadModel(JNIEnv* env, jobject thiz, jobject assetManager)
 {
     AAssetManager* mgr = AAssetManager_fromJava(env, assetManager);
     if (!mgr)
@@ -194,32 +180,35 @@ JNIEXPORT jboolean JNICALL Java_com_polytron_yolo11ncnncompose_YOLO11Ncnn_loadMo
 //    const char* parampath = "yolo11n_pose.ncnn.param";
 //    const char* modelpath = "yolo11n_pose.ncnn.bin";
 
-    const char* parampath = "palm_lite-op.param";
-    const char* modelpath = "palm_lite-op.bin";
+//    const char* parampath = "hand_full-op.param";
+//    const char* modelpath = "hand_full-op.bin";
+
+    const char* parampath = "rps.ncnn.param";
+    const char* modelpath = "rps.ncnn.bin";
 
     {
         ncnn::MutexLockGuard g(lock);
 
-        delete g_yolo11;
-        g_yolo11 = nullptr;
+        delete g_ncnn;
+        g_ncnn = nullptr;
 
-        g_yolo11 = new YOLO11_pose;
-        if (!g_yolo11)
+        g_ncnn = new Detection;
+        if (!g_ncnn)
         {
             __android_log_print(ANDROID_LOG_ERROR, "ncnn", "Failed to alloc YOLO11_det");
             return JNI_FALSE;
         }
 
-        int ret = g_yolo11->load(mgr, parampath, modelpath, 0);
+        int ret = g_ncnn->load(mgr, parampath, modelpath);
         if (ret != 0)
         {
             __android_log_print(ANDROID_LOG_ERROR, "ncnn", "g_yolo11->load failed: %d", ret);
-            delete g_yolo11;
-            g_yolo11 = nullptr;
+            delete g_ncnn;
+            g_ncnn = nullptr;
             return JNI_FALSE;
         }
 
-        g_yolo11->set_det_target_size(640);
+        g_ncnn->set_det_target_size(640);
 
         __android_log_print(ANDROID_LOG_DEBUG, "ncnn", "Model loaded: %s / %s", parampath, modelpath);
     }
@@ -228,7 +217,7 @@ JNIEXPORT jboolean JNICALL Java_com_polytron_yolo11ncnncompose_YOLO11Ncnn_loadMo
 }
 
 // public native boolean openCamera(int facing);
-JNIEXPORT jboolean JNICALL Java_com_polytron_yolo11ncnncompose_YOLO11Ncnn_openCamera(JNIEnv* env, jobject thiz, jint facing)
+JNIEXPORT jboolean JNICALL Java_com_polytron_yolo11ncnncompose_MyNcnn_openCamera(JNIEnv* env, jobject thiz, jint facing)
 {
     if (facing < 0 || facing > 1)
         return JNI_FALSE;
@@ -241,7 +230,7 @@ JNIEXPORT jboolean JNICALL Java_com_polytron_yolo11ncnncompose_YOLO11Ncnn_openCa
 }
 
 // public native boolean closeCamera();
-JNIEXPORT jboolean JNICALL Java_com_polytron_yolo11ncnncompose_YOLO11Ncnn_closeCamera(JNIEnv* env, jobject thiz)
+JNIEXPORT jboolean JNICALL Java_com_polytron_yolo11ncnncompose_MyNcnn_closeCamera(JNIEnv* env, jobject thiz)
 {
     __android_log_print(ANDROID_LOG_DEBUG, "ncnn", "closeCamera");
 
@@ -251,7 +240,7 @@ JNIEXPORT jboolean JNICALL Java_com_polytron_yolo11ncnncompose_YOLO11Ncnn_closeC
 }
 
 // public native boolean setOutputWindow(Surface surface);
-JNIEXPORT jboolean JNICALL Java_com_polytron_yolo11ncnncompose_YOLO11Ncnn_setOutputWindow(JNIEnv* env, jobject thiz, jobject surface)
+JNIEXPORT jboolean JNICALL Java_com_polytron_yolo11ncnncompose_MyNcnn_setOutputWindow(JNIEnv* env, jobject thiz, jobject surface)
 {
     ANativeWindow* win = ANativeWindow_fromSurface(env, surface);
 
@@ -260,6 +249,11 @@ JNIEXPORT jboolean JNICALL Java_com_polytron_yolo11ncnncompose_YOLO11Ncnn_setOut
     g_camera->set_window(win);
 
     return JNI_TRUE;
+}
+
+JNIEXPORT jint JNICALL Java_com_polytron_yolo11ncnncompose_MyNcnn_getNumber(JNIEnv* env, jobject thiz)
+{
+    return g_ncnn->get_number();
 }
 
 }

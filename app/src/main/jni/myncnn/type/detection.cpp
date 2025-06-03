@@ -1,91 +1,4 @@
-// Tencent is pleased to support the open source community by making ncnn available.
-//
-// Copyright (C) 2025 THL A29 Limited, a Tencent company. All rights reserved.
-//
-// Licensed under the BSD 3-Clause License (the "License"); you may not use this file except
-// in compliance with the License. You may obtain a copy of the License at
-//
-// https://opensource.org/licenses/BSD-3-Clause
-//
-// Unless required by applicable law or agreed to in writing, software distributed
-// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-// CONDITIONS OF ANY KIND, either express or implied. See the License for the
-// specific language governing permissions and limitations under the License.
-
-// 1. install
-//      pip3 install -U ultralytics pnnx ncnn
-// 2. export yolo11 torchscript
-//      yolo export model=yolo11n.pt format=torchscript
-// 3. convert torchscript with static shape
-//      pnnx yolo11n.torchscript
-// 4. modify yolo11n_pnnx.py for dynamic shape inference
-//      A. modify reshape to support dynamic image sizes
-//      B. permute tensor before concat and adjust concat axis
-//      C. drop post-process part
-//      before:
-//          v_235 = v_204.view(1, 144, 6400)
-//          v_236 = v_219.view(1, 144, 1600)
-//          v_237 = v_234.view(1, 144, 400)
-//          v_238 = torch.cat((v_235, v_236, v_237), dim=2)
-//          ...
-//      after:
-//          v_235 = v_204.view(1, 144, -1).transpose(1, 2)
-//          v_236 = v_219.view(1, 144, -1).transpose(1, 2)
-//          v_237 = v_234.view(1, 144, -1).transpose(1, 2)
-//          v_238 = torch.cat((v_235, v_236, v_237), dim=1)
-//          return v_238
-//      D. modify area attention for dynamic shape inference
-//      before:
-//          v_95 = self.model_10_m_0_attn_qkv_conv(v_94)
-//          v_96 = v_95.view(1, 2, 128, 400)
-//          v_97, v_98, v_99 = torch.split(tensor=v_96, dim=2, split_size_or_sections=(32,32,64))
-//          v_100 = torch.transpose(input=v_97, dim0=-2, dim1=-1)
-//          v_101 = torch.matmul(input=v_100, other=v_98)
-//          v_102 = (v_101 * 0.176777)
-//          v_103 = F.softmax(input=v_102, dim=-1)
-//          v_104 = torch.transpose(input=v_103, dim0=-2, dim1=-1)
-//          v_105 = torch.matmul(input=v_99, other=v_104)
-//          v_106 = v_105.view(1, 128, 20, 20)
-//          v_107 = v_99.reshape(1, 128, 20, 20)
-//          v_108 = self.model_10_m_0_attn_pe_conv(v_107)
-//          v_109 = (v_106 + v_108)
-//          v_110 = self.model_10_m_0_attn_proj_conv(v_109)
-//      after:
-//          v_95 = self.model_10_m_0_attn_qkv_conv(v_94)
-//          v_96 = v_95.view(1, 2, 128, -1)
-//          v_97, v_98, v_99 = torch.split(tensor=v_96, dim=2, split_size_or_sections=(32,32,64))
-//          v_100 = torch.transpose(input=v_97, dim0=-2, dim1=-1)
-//          v_101 = torch.matmul(input=v_100, other=v_98)
-//          v_102 = (v_101 * 0.176777)
-//          v_103 = F.softmax(input=v_102, dim=-1)
-//          v_104 = torch.transpose(input=v_103, dim0=-2, dim1=-1)
-//          v_105 = torch.matmul(input=v_99, other=v_104)
-//          v_106 = v_105.view(1, 128, v_95.size(2), v_95.size(3))
-//          v_107 = v_99.reshape(1, 128, v_95.size(2), v_95.size(3))
-//          v_108 = self.model_10_m_0_attn_pe_conv(v_107)
-//          v_109 = (v_106 + v_108)
-//          v_110 = self.model_10_m_0_attn_proj_conv(v_109)
-// 5. re-export yolo11 torchscript
-//      python3 -c 'import yolo11n_pnnx; yolo11n_pnnx.export_torchscript()'
-// 6. convert new torchscript with dynamic shape
-//      pnnx yolo11n_pnnx.py.pt inputshape=[1,3,640,640] inputshape2=[1,3,320,320]
-// 7. now you get ncnn model files
-//      mv yolo11n_pnnx.py.ncnn.param yolo11n.ncnn.param
-//      mv yolo11n_pnnx.py.ncnn.bin yolo11n.ncnn.bin
-
-// the out blob would be a 2-dim tensor with w=144 h=8400
-//
-//        | bbox-reg 16 x 4       | per-class scores(80) |
-//        +-----+-----+-----+-----+----------------------+
-//        | dx0 | dy0 | dx1 | dy1 |0.1 0.0 0.0 0.5 ......|
-//   all /|     |     |     |     |           .          |
-//  boxes |  .. |  .. |  .. |  .. |0.0 0.9 0.0 0.0 ......|
-//  (8400)|     |     |     |     |           .          |
-//       \|     |     |     |     |           .          |
-//        +-----+-----+-----+-----+----------------------+
-//
-
-#include "yolo11.h"
+#include "../myncnn.h"
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
@@ -298,7 +211,7 @@ static void generate_proposals(const ncnn::Mat& pred, const std::vector<int>& st
     }
 }
 
-int YOLO11_det::detect(const cv::Mat& rgb, std::vector<Object>& objects)
+int Detection::detect(const cv::Mat& rgb, std::vector<Object>& objects)
 {
     const int target_size = det_target_size;//640;
     const float prob_threshold = 0.25f;
@@ -341,14 +254,12 @@ int YOLO11_det::detect(const cv::Mat& rgb, std::vector<Object>& objects)
 
     const float norm_vals[3] = {1 / 255.f, 1 / 255.f, 1 / 255.f};
     in_pad.substract_mean_normalize(0, norm_vals);
-
-    ncnn::Extractor ex = yolo11.create_extractor();
-
+//
+    ncnn::Extractor ex = myncnn.create_extractor();
     ex.input("in0", in_pad);
-
     ncnn::Mat out;
     ex.extract("out0", out);
-
+//
     std::vector<Object> proposals;
     generate_proposals(out, strides, in_pad, prob_threshold, proposals);
 
@@ -396,8 +307,77 @@ int YOLO11_det::detect(const cv::Mat& rgb, std::vector<Object>& objects)
 
     return 0;
 }
-
-//int YOLO11_det::draw(cv::Mat& rgb, const std::vector<Object>& objects)
+//int Detection::detect2(const cv::Mat& rgb, std::vector<Object>& objects)
+//{
+//    const int target_size = 256; // Sesuaikan dengan model landmark
+//    int img_w = rgb.cols;
+//    int img_h = rgb.rows;
+//
+//    // Resize dengan menjaga rasio
+//    int w = img_w;
+//    int h = img_h;
+//    float scale = 1.f;
+//    if (w > h)
+//    {
+//        scale = (float)target_size / w;
+//        w = target_size;
+//        h = h * scale;
+//    }
+//    else
+//    {
+//        scale = (float)target_size / h;
+//        h = target_size;
+//        w = w * scale;
+//    }
+//
+//    // Resize dan pad ke target_size x target_size
+//    ncnn::Mat in = ncnn::Mat::from_pixels_resize(rgb.data, ncnn::Mat::PIXEL_RGB, img_w, img_h, w, h);
+//
+//    int pad_w = (target_size - w) / 2;
+//    int pad_h = (target_size - h) / 2;
+//
+//    ncnn::Mat in_pad;
+//    ncnn::copy_make_border(in, in_pad, pad_h, target_size - h - pad_h, pad_w, target_size - w - pad_w,
+//                           ncnn::BORDER_CONSTANT, 0.f);
+//
+//    // Normalisasi
+//    const float norm_vals[3] = {1 / 255.f, 1 / 255.f, 1 / 255.f};
+//    in_pad.substract_mean_normalize(0, norm_vals);
+//
+//    // Inference
+//    ncnn::Mat points, score;
+//    {
+//        ncnn::Extractor ex = myncnn.create_extractor();
+//        ex.input("input", in_pad);
+//        ex.extract("points", points);
+//        ex.extract("score", score);
+//    }
+//
+//    float* points_data = (float*)points.data;
+//    myncnn.clear();
+//
+//    for (int i = 0; i < 21; i++)
+//    {
+//        float x = points_data[i * 3];     // Normalized x (0.0 - 1.0)
+//        float y = points_data[i * 3 + 1]; // Normalized y
+//
+//        // Skala ke ukuran in_pad, lalu kembalikan ke koordinat asli
+//        float px = x * target_size;
+//        float py = y * target_size;
+//
+//        // Hapus padding, lalu skala balik ke koordinat asli rgb
+//        px = (px - pad_w) / scale;
+//        py = (py - pad_h) / scale;
+//
+//        px = std::clamp(px, 0.0f, (float)(img_w - 1));
+//        py = std::clamp(py, 0.0f, (float)(img_h - 1));
+//
+//        myncnn.push_back(cv::Point2f(px, py));
+//    }
+//
+//    return 0;
+//}
+//int Detection::draw(cv::Mat& rgb, const std::vector<Object>& objects)
 //{
 //    for (size_t i = 0; i < objects.size(); i++)
 //    {
@@ -430,40 +410,86 @@ int YOLO11_det::detect(const cv::Mat& rgb, std::vector<Object>& objects)
 //    return 0;
 //}
 
-int YOLO11_det::draw(cv::Mat& rgb, const std::vector<Object>& objects)
+//int Detection::draw(cv::Mat& rgb, const std::vector<Object>& objects)
+//{
+//    static const char* class_names[] = {
+//            "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat", "traffic light",
+//            "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat", "dog", "horse", "sheep", "cow",
+//            "elephant", "bear", "zebra", "giraffe", "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee",
+//            "skis", "snowboard", "sports ball", "kite", "baseball bat", "baseball glove", "skateboard", "surfboard",
+//            "tennis racket", "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana", "apple",
+//            "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair", "couch",
+//            "potted plant", "bed", "dining table", "toilet", "tv", "laptop", "mouse", "remote", "keyboard", "cell phone",
+//            "microwave", "oven", "toaster", "sink", "refrigerator", "book", "clock", "vase", "scissors", "teddy bear",
+//            "hair drier", "toothbrush"
+//    };
+//
+//    static cv::Scalar colors[] = {
+//            cv::Scalar( 67,  54, 244),
+//            cv::Scalar( 30,  99, 233),
+//            cv::Scalar( 39, 176, 156),
+//            cv::Scalar( 58, 183, 103),
+//            cv::Scalar( 81, 181,  63),
+//            cv::Scalar(150, 243,  33),
+//            cv::Scalar(169, 244,   3),
+//            cv::Scalar(188, 212,   0),
+//            cv::Scalar(150, 136,   0),
+//            cv::Scalar(175,  80,  76),
+//            cv::Scalar(195,  74, 139),
+//            cv::Scalar(220,  57, 205),
+//            cv::Scalar(235,  59, 255),
+//            cv::Scalar(193,   7, 255),
+//            cv::Scalar(152,   0, 255),
+//            cv::Scalar( 87,  34, 255),
+//            cv::Scalar( 85,  72, 121),
+//            cv::Scalar(158, 158, 158),
+//            cv::Scalar(125, 139,  96)
+//    };
+//
+//    for (size_t i = 0; i < objects.size(); i++)
+//    {
+//        const Object& obj = objects[i];
+//
+//        const cv::Scalar& color = colors[i % 19];
+//
+//        // fprintf(stderr, "%d = %.5f at %.2f %.2f %.2f x %.2f\n", obj.label, obj.prob,
+//        // obj.rect.x, obj.rect.y, obj.rect.width, obj.rect.height);
+//
+//        cv::rectangle(rgb, obj.rect, color);
+//
+//        char text[256];
+//        sprintf(text, "%s %.1f%%", class_names[obj.label], obj.prob * 100);
+//
+//        int baseLine = 0;
+//        cv::Size label_size = cv::getTextSize(text, cv::FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);
+//
+//        int x = obj.rect.x;
+//        int y = obj.rect.y - label_size.height - baseLine;
+//        if (y < 0)
+//            y = 0;
+//        if (x + label_size.width > rgb.cols)
+//            x = rgb.cols - label_size.width;
+//
+//        cv::rectangle(rgb, cv::Rect(cv::Point(x, y), cv::Size(label_size.width, label_size.height + baseLine)),
+//                      cv::Scalar(255, 255, 255), -1);
+//
+//        cv::putText(rgb, text, cv::Point(x, y + label_size.height),
+//                    cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0));
+//    }
+//
+//    return 0;
+//}
+
+int Detection::draw(cv::Mat& rgb, const std::vector<Object>& objects)
 {
     static const char* class_names[] = {
-        "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat", "traffic light",
-        "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat", "dog", "horse", "sheep", "cow",
-        "elephant", "bear", "zebra", "giraffe", "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee",
-        "skis", "snowboard", "sports ball", "kite", "baseball bat", "baseball glove", "skateboard", "surfboard",
-        "tennis racket", "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana", "apple",
-        "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair", "couch",
-        "potted plant", "bed", "dining table", "toilet", "tv", "laptop", "mouse", "remote", "keyboard", "cell phone",
-        "microwave", "oven", "toaster", "sink", "refrigerator", "book", "clock", "vase", "scissors", "teddy bear",
-        "hair drier", "toothbrush"
+            "Paper", "Rock", "Scissor"
     };
 
     static cv::Scalar colors[] = {
-        cv::Scalar( 67,  54, 244),
-        cv::Scalar( 30,  99, 233),
-        cv::Scalar( 39, 176, 156),
-        cv::Scalar( 58, 183, 103),
-        cv::Scalar( 81, 181,  63),
-        cv::Scalar(150, 243,  33),
-        cv::Scalar(169, 244,   3),
-        cv::Scalar(188, 212,   0),
-        cv::Scalar(150, 136,   0),
-        cv::Scalar(175,  80,  76),
-        cv::Scalar(195,  74, 139),
-        cv::Scalar(220,  57, 205),
-        cv::Scalar(235,  59, 255),
-        cv::Scalar(193,   7, 255),
-        cv::Scalar(152,   0, 255),
-        cv::Scalar( 87,  34, 255),
-        cv::Scalar( 85,  72, 121),
-        cv::Scalar(158, 158, 158),
-        cv::Scalar(125, 139,  96)
+            cv::Scalar( 67,  54, 244),
+            cv::Scalar( 30,  99, 233),
+            cv::Scalar( 39, 176, 156)
     };
 
     for (size_t i = 0; i < objects.size(); i++)
@@ -473,12 +499,16 @@ int YOLO11_det::draw(cv::Mat& rgb, const std::vector<Object>& objects)
         const cv::Scalar& color = colors[i % 19];
 
         // fprintf(stderr, "%d = %.5f at %.2f %.2f %.2f x %.2f\n", obj.label, obj.prob,
-                // obj.rect.x, obj.rect.y, obj.rect.width, obj.rect.height);
+        // obj.rect.x, obj.rect.y, obj.rect.width, obj.rect.height);
 
         cv::rectangle(rgb, obj.rect, color);
 
         char text[256];
         sprintf(text, "%s %.1f%%", class_names[obj.label], obj.prob * 100);
+
+        myNumber = obj.label;
+
+        __android_log_print(ANDROID_LOG_DEBUG, "Number", "Number: %d", myNumber);
 
         int baseLine = 0;
         cv::Size label_size = cv::getTextSize(text, cv::FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);

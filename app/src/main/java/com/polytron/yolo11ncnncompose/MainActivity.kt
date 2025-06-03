@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -35,7 +36,7 @@ import com.polytron.yolo11ncnncompose.ui.theme.Yolo11NCNNComposeTheme
 class MainActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private val REQUEST_CAMERA = 100
-    private val yolo11ncnn = YOLO11Ncnn()
+    private val myNcnn = MyNcnn()
     private var facing = 0
     lateinit var surfaceView: SurfaceView
 
@@ -54,13 +55,22 @@ class MainActivity : ComponentActivity(), SurfaceHolder.Callback {
                                 IconButton(
                                     onClick = {
                                     val newFacing = 1 - facing
-                                    yolo11ncnn.closeCamera()
-                                    yolo11ncnn.openCamera(newFacing)
+                                    myNcnn.closeCamera()
+                                    myNcnn.openCamera(newFacing)
                                     facing = newFacing
                                 }) {
                                     Icon(
                                         imageVector = Icons.Default.Refresh,
                                         contentDescription = "Info"
+                                    )
+                                }
+                                IconButton(
+                                    onClick = {
+                                        Log.i("Number", "Number: ${myNcnn.getNumber()}")
+                                    }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Info,
+                                        contentDescription = "Get"
                                     )
                                 }
                             }
@@ -91,10 +101,10 @@ class MainActivity : ComponentActivity(), SurfaceHolder.Callback {
                 REQUEST_CAMERA
             )
         } else {
-            yolo11ncnn.openCamera(facing)
+            myNcnn.openCamera(facing)
         }
 
-        val retInit = yolo11ncnn.loadModel(assets)
+        val retInit = myNcnn.loadModel(assets)
         if (!retInit) {
             Log.e("MainActivity", "yolo11ncnn loadModel failed")
         }
@@ -102,18 +112,18 @@ class MainActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onResume() {
         super.onResume()
-        yolo11ncnn.openCamera(facing)
+        myNcnn.openCamera(facing)
     }
 
     override fun onPause() {
         super.onPause()
-        yolo11ncnn.closeCamera()
+        myNcnn.closeCamera()
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {}
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
-        yolo11ncnn.setOutputWindow(holder.surface)
+        myNcnn.setOutputWindow(holder.surface)
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {}
