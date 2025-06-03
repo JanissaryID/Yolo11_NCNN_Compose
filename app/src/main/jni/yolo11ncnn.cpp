@@ -28,7 +28,7 @@
 
 #include "yolo11.h"
 
-#include "ndkcamera.h"
+#include "camera/ndkcamera.h"
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
@@ -188,8 +188,14 @@ JNIEXPORT jboolean JNICALL Java_com_polytron_yolo11ncnncompose_YOLO11Ncnn_loadMo
 //    const char* parampath = "best_Damage.ncnn.param";
 //    const char* modelpath = "best_Damage.ncnn.bin";
 
-    const char* parampath = "yolo11n.ncnn.param";
-    const char* modelpath = "yolo11n.ncnn.bin";
+//    const char* parampath = "yolo11n.ncnn.param";
+//    const char* modelpath = "yolo11n.ncnn.bin";
+
+//    const char* parampath = "yolo11n_pose.ncnn.param";
+//    const char* modelpath = "yolo11n_pose.ncnn.bin";
+
+    const char* parampath = "palm_lite-op.param";
+    const char* modelpath = "palm_lite-op.bin";
 
     {
         ncnn::MutexLockGuard g(lock);
@@ -197,7 +203,7 @@ JNIEXPORT jboolean JNICALL Java_com_polytron_yolo11ncnncompose_YOLO11Ncnn_loadMo
         delete g_yolo11;
         g_yolo11 = nullptr;
 
-        g_yolo11 = new YOLO11_det;
+        g_yolo11 = new YOLO11_pose;
         if (!g_yolo11)
         {
             __android_log_print(ANDROID_LOG_ERROR, "ncnn", "Failed to alloc YOLO11_det");
