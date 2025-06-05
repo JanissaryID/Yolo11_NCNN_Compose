@@ -9,6 +9,9 @@ lifecycleRuntimeKtx = "2.6.1"
 activityCompose = "1.8.0"
 composeBom = "2024.09.00"
 
+koin = "4.0.0-RC2"
+moko = "0.16.1"
+
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
@@ -24,6 +27,18 @@ androidx-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-toolin
 androidx-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 androidx-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
 androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
+
+#moko and koin
+koin-core = { group = "io.insert-koin", name = "koin-core", version.ref = "koin" }
+koin-android = { group = "io.insert-koin", name = "koin-android", version.ref = "koin" }
+koin-compose = { group = "io.insert-koin", name = "koin-androidx-compose", version.ref = "koin" }
+koin-android-viewmodel = { group = "io.insert-koin", name = "koin-compose-viewmodel", version.ref = "koin" }
+
+moko-core = { group = "dev.icerock.moko", name = "mvvm-core", version.ref = "moko" }
+moko-compose = { group = "dev.icerock.moko", name = "mvvm-compose", version.ref = "moko" }
+moko-flow = { group = "dev.icerock.moko", name = "mvvm-flow", version.ref = "moko" }
+moko-compose-flow = { group = "dev.icerock.moko", name = "mvvm-flow-compose", version.ref = "moko" }
+moko-compose-livedata = { group = "dev.icerock.moko", name = "mvvm-livedata-compose", version.ref = "moko" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

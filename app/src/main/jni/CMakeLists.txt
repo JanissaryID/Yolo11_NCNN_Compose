@@ -12,7 +12,7 @@ add_library(myncnn SHARED
         main_ncnn.cpp
         myncnn/myncnn.cpp
         myncnn/type/detection.cpp
-        myncnn/type/Pose.cpp
+        socket/TcpClient.cpp
         camera/ndkcamera.cpp)
 
 target_link_libraries(myncnn ncnn ${OpenCV_LIBS} camera2ndk mediandk)

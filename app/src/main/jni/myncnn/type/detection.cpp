@@ -307,108 +307,6 @@ int Detection::detect(const cv::Mat& rgb, std::vector<Object>& objects)
 
     return 0;
 }
-//int Detection::detect2(const cv::Mat& rgb, std::vector<Object>& objects)
-//{
-//    const int target_size = 256; // Sesuaikan dengan model landmark
-//    int img_w = rgb.cols;
-//    int img_h = rgb.rows;
-//
-//    // Resize dengan menjaga rasio
-//    int w = img_w;
-//    int h = img_h;
-//    float scale = 1.f;
-//    if (w > h)
-//    {
-//        scale = (float)target_size / w;
-//        w = target_size;
-//        h = h * scale;
-//    }
-//    else
-//    {
-//        scale = (float)target_size / h;
-//        h = target_size;
-//        w = w * scale;
-//    }
-//
-//    // Resize dan pad ke target_size x target_size
-//    ncnn::Mat in = ncnn::Mat::from_pixels_resize(rgb.data, ncnn::Mat::PIXEL_RGB, img_w, img_h, w, h);
-//
-//    int pad_w = (target_size - w) / 2;
-//    int pad_h = (target_size - h) / 2;
-//
-//    ncnn::Mat in_pad;
-//    ncnn::copy_make_border(in, in_pad, pad_h, target_size - h - pad_h, pad_w, target_size - w - pad_w,
-//                           ncnn::BORDER_CONSTANT, 0.f);
-//
-//    // Normalisasi
-//    const float norm_vals[3] = {1 / 255.f, 1 / 255.f, 1 / 255.f};
-//    in_pad.substract_mean_normalize(0, norm_vals);
-//
-//    // Inference
-//    ncnn::Mat points, score;
-//    {
-//        ncnn::Extractor ex = myncnn.create_extractor();
-//        ex.input("input", in_pad);
-//        ex.extract("points", points);
-//        ex.extract("score", score);
-//    }
-//
-//    float* points_data = (float*)points.data;
-//    myncnn.clear();
-//
-//    for (int i = 0; i < 21; i++)
-//    {
-//        float x = points_data[i * 3];     // Normalized x (0.0 - 1.0)
-//        float y = points_data[i * 3 + 1]; // Normalized y
-//
-//        // Skala ke ukuran in_pad, lalu kembalikan ke koordinat asli
-//        float px = x * target_size;
-//        float py = y * target_size;
-//
-//        // Hapus padding, lalu skala balik ke koordinat asli rgb
-//        px = (px - pad_w) / scale;
-//        py = (py - pad_h) / scale;
-//
-//        px = std::clamp(px, 0.0f, (float)(img_w - 1));
-//        py = std::clamp(py, 0.0f, (float)(img_h - 1));
-//
-//        myncnn.push_back(cv::Point2f(px, py));
-//    }
-//
-//    return 0;
-//}
-//int Detection::draw(cv::Mat& rgb, const std::vector<Object>& objects)
-//{
-//    for (size_t i = 0; i < objects.size(); i++)
-//    {
-//        const Object& obj = objects[i];
-//
-//        const cv::Scalar& color = cv::Scalar( 39, 176, 156);
-//
-//        cv::rectangle(rgb, obj.rect, color);
-//
-//        char text[256];
-//        sprintf(text, "%s %.1f%%", "Damage", obj.prob * 100);
-//
-//        int baseLine = 0;
-//        cv::Size label_size = cv::getTextSize(text, cv::FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);
-//
-//        int x = obj.rect.x;
-//        int y = obj.rect.y - label_size.height - baseLine;
-//        if (y < 0)
-//            y = 0;
-//        if (x + label_size.width > rgb.cols)
-//            x = rgb.cols - label_size.width;
-//
-//        cv::rectangle(rgb, cv::Rect(cv::Point(x, y), cv::Size(label_size.width, label_size.height + baseLine)),
-//                      cv::Scalar(255, 255, 255), -1);
-//
-//        cv::putText(rgb, text, cv::Point(x, y + label_size.height),
-//                    cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0));
-//    }
-//
-//    return 0;
-//}
 
 //int Detection::draw(cv::Mat& rgb, const std::vector<Object>& objects)
 //{
@@ -479,6 +377,7 @@ int Detection::detect(const cv::Mat& rgb, std::vector<Object>& objects)
 //
 //    return 0;
 //}
+extern TcpClient* gTcpClient;
 
 int Detection::draw(cv::Mat& rgb, const std::vector<Object>& objects)
 {
@@ -507,7 +406,16 @@ int Detection::draw(cv::Mat& rgb, const std::vector<Object>& objects)
         sprintf(text, "%s %.1f%%", class_names[obj.label], obj.prob * 100);
 
         myNumber = obj.label;
+        if(myNumber > 0){
+            __android_log_print(ANDROID_LOG_DEBUG, "TcpClient", "gTcpClient: %p connected: %d", gTcpClient, gTcpClient ? gTcpClient->isConnected() : 0);
 
+            std::string msg = std::to_string(myNumber);
+            if (gTcpClient && gTcpClient->isConnected()) {
+                gTcpClient->asyncSendData(msg);
+            } else {
+                __android_log_print(ANDROID_LOG_DEBUG, "TcpClient", "Not connected, cannot send data");
+            }
+        }
         __android_log_print(ANDROID_LOG_DEBUG, "Number", "Number: %d", myNumber);
 
         int baseLine = 0;

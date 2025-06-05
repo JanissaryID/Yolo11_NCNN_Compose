@@ -1,5 +1,7 @@
 #include "myncnn.h"
 
+TcpClient* gTcpClient = nullptr;
+
 MYNCNN::~MYNCNN()
 {
     det_target_size = 640;

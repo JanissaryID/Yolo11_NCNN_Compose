@@ -5,6 +5,14 @@
 
 #include <net.h>
 
+#include <string>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
+#include <queue>
+#include <atomic>
+#include <functional>
+
 struct KeyPoint
 {
     cv::Point2f p;
@@ -24,66 +32,7 @@ struct Object
 
 // #################################################################################################
 
-struct ObjectHand
-{
-    cv::Rect_<float> rect;
-    int label;
-    float prob;
-    cv::Point2f pts[21];
-};
 
-struct PalmObject
-{
-    float  score;
-    cv::Rect rect;
-    cv::Point2f  landmarks[7];
-    float  rotation;
-
-    float  hand_cx;
-    float  hand_cy;
-    float  hand_w;
-    float  hand_h;
-    cv::Point2f  hand_pos[4];
-
-    cv::Mat trans_image;
-    std::vector<cv::Point2f> skeleton;
-};
-
-struct DetectRegion
-{
-    float score;
-    cv::Point2f topleft;
-    cv::Point2f btmright;
-    cv::Point2f landmarks[7];
-
-    float  rotation;
-    cv::Point2f  roi_center;
-    cv::Point2f  roi_size;
-    cv::Point2f  roi_coord[4];
-};
-
-struct Anchor
-{
-    float x_center, y_center, w, h;
-};
-
-struct AnchorsParams
-{
-    int input_size_width;
-    int input_size_height;
-
-    float min_scale;
-    float max_scale;
-
-    float anchor_offset_x;
-    float anchor_offset_y;
-
-    int num_layers;
-    std::vector<int> feature_map_width;
-    std::vector<int> feature_map_height;
-    std::vector<int>   strides;
-    std::vector<float> aspect_ratios;
-};
 
 // #################################################################################################
 
@@ -117,24 +66,45 @@ public:
     virtual int draw(cv::Mat& rgb, const std::vector<Object>& objects);
 };
 
-class Pose : public MYNCNN
-{
+class TcpClient {
 public:
-    virtual int detect(const cv::Mat& rgb, std::vector<Object>& objects);
-    virtual int draw(cv::Mat& rgb, const std::vector<Object>& objects);
-};
+    TcpClient();
+    ~TcpClient();
 
-class Hand
-{
-public:
-    int load(AAssetManager* mgr, const char* modeltype, int target_size, const float* mean_vals, const float* norm_vals, bool use_gpu = false);
-    int detect(const cv::Mat& bgr, std::vector<cv::Rect>& hands, std::vector<cv::Mat>& trans_mats, std::vector<cv::Mat>& hand_crops);
+    // Asynchronous connect (callback untuk hasil)
+    void asyncConnect(const std::string& ip, int port, std::function<void(bool)> callback);
+
+    // Kirim data asinkron
+    void asyncSendData(const std::string& data);
+
+    // Tutup koneksi dan stop semua thread
+    void closeConnection();
+
+    bool isConnected() const;
 
 private:
-    ncnn::Net hand_net;
-    int target_size;
-    float mean_vals[3];
-    float norm_vals[3];
+    // Blocking connect internal
+    bool connectToServer(const std::string& ip, int port);
+
+    // Blocking send internal
+    bool sendData(const std::string& data);
+
+    // Worker thread untuk pengiriman data
+    void sendWorker();
+
+private:
+    int sockfd;
+    std::atomic<bool> connected;
+
+    // Thread worker untuk send async
+    std::thread sendThread;
+    std::mutex queueMutex;
+    std::condition_variable cv;
+    std::queue<std::string> sendQueue;
+    std::atomic<bool> running;
+
+    std::mutex connectMutex;
+    std::thread connectThread;
 };
 
 #endif //YOLO11_NCNN_COMPOSE_MYNCNN_H

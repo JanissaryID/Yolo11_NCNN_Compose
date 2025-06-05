@@ -10,6 +10,8 @@ class MyNcnn {
     external fun closeCamera(): Boolean
     external fun setOutputWindow(surface: Surface): Boolean
     external fun getNumber(): Int
+    external fun connect(ip: String, port: Int): Int
+    external fun close()
 
     companion object {
         init {

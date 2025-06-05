@@ -31,7 +31,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.polytron.yolo11ncnncompose.socket.SocketViewModel
 import com.polytron.yolo11ncnncompose.ui.theme.Yolo11NCNNComposeTheme
+import org.koin.compose.koinInject
 
 class MainActivity : ComponentActivity(), SurfaceHolder.Callback {
 
@@ -47,6 +49,11 @@ class MainActivity : ComponentActivity(), SurfaceHolder.Callback {
 
         setContent {
             MaterialTheme {
+//                val myViewModel : SocketViewModel = koinInject()
+                val ip = "10.8.50.177"
+//                myViewModel.connect(ip, myNcnn = myNcnn)
+                myNcnn.connect(ip, 8888)
+
                 Scaffold(
                     topBar = {
                         TopAppBar(

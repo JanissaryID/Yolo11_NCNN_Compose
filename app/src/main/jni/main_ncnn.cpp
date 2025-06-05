@@ -219,7 +219,7 @@ JNIEXPORT jboolean JNICALL Java_com_polytron_yolo11ncnncompose_MyNcnn_loadModel(
 // public native boolean openCamera(int facing);
 JNIEXPORT jboolean JNICALL Java_com_polytron_yolo11ncnncompose_MyNcnn_openCamera(JNIEnv* env, jobject thiz, jint facing)
 {
-    if (facing < 0 || facing > 1)
+    if (facing < 0 || facing > 3)
         return JNI_FALSE;
 
     __android_log_print(ANDROID_LOG_DEBUG, "ncnn", "openCamera %d", facing);
@@ -254,6 +254,39 @@ JNIEXPORT jboolean JNICALL Java_com_polytron_yolo11ncnncompose_MyNcnn_setOutputW
 JNIEXPORT jint JNICALL Java_com_polytron_yolo11ncnncompose_MyNcnn_getNumber(JNIEnv* env, jobject thiz)
 {
     return g_ncnn->get_number();
+}
+
+extern TcpClient* gTcpClient;
+
+static void onConnectResult(bool success) {
+    __android_log_print(ANDROID_LOG_DEBUG, "socket", "Connect result: %d", success);
+}
+
+JNIEXPORT jint JNICALL Java_com_polytron_yolo11ncnncompose_MyNcnn_connect(JNIEnv* env, jobject thiz, jstring ip_, jint port)
+{
+    const char *ip = env->GetStringUTFChars(ip_, nullptr);
+
+    if (gTcpClient != nullptr) {
+        delete gTcpClient;
+        gTcpClient = nullptr;
+    }
+
+    gTcpClient = new TcpClient();
+
+    gTcpClient->asyncConnect(std::string(ip), port, onConnectResult);
+
+    env->ReleaseStringUTFChars(ip_, ip);
+
+    return 0;
+}
+
+JNIEXPORT void JNICALL Java_com_polytron_yolo11ncnncompose_MyNcnn_close(JNIEnv* env, jobject thiz) {
+    if (gTcpClient != nullptr) {
+        gTcpClient->closeConnection();
+        delete gTcpClient;
+        gTcpClient = nullptr;
+        __android_log_print(ANDROID_LOG_DEBUG, "socket", "Connection closed and client deleted");
+    }
 }
 
 }
